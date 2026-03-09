@@ -81,13 +81,54 @@ def parse_soul_md(content: str) -> Dict[str, Any]:
         'roles': []
     }
     
-    # Extraer primera sección como descripción
-    sections = content.split('##')
-    if sections:
-        first_section = sections[0].strip()
-        # Tomar las primeras 3 líneas no vacías
-        lines = [l.strip() for l in first_section.split('\n') if l.strip()][:3]
-        data['description'] = ' '.join(lines)[:200]
+    # Limpiar líneas y buscar descripción real
+    lines = content.split('\n')
+    description_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        # Saltar líneas vacías, headers markdown (# ##), y el nombre del archivo
+        if not line or line.startswith('#') or line.startswith('---'):
+            continue
+        # Saltar líneas de metadata tipo "- **Name:**"
+        if line.startswith('- **') or line.startswith('*'):
+            continue
+        # Acumular líneas de descripción
+        if len(line) > 10:  # Solo líneas con contenido sustancial
+            description_lines.append(line)
+            if len(description_lines) >= 2:  # Tomar primeras 2 líneas de contenido
+                break
+    
+    if description_lines:
+        data['description'] = ' '.join(description_lines)[:250]
+    else:
+        # Fallback: buscar sección "Who You Are" o "Who I Am"
+        match = re.search(r'##?\s*(?:Who You Are|Who I Am|Descripción|About)[^#]*\n+([^#\n]+)', content, re.IGNORECASE)
+        if match:
+            data['description'] = match.group(1).strip()[:250]
+        else:
+            data['description'] = 'Agente de OpenClaw especializado en automatización'
+    
+    # Buscar roles mencionados en secciones ##
+    section_matches = re.findall(r'##\s*([^#\n]+)', content)
+    for section in section_matches:
+        section_clean = section.strip()
+        if section_clean and len(section_clean) < 50:
+            # Excluir secciones comunes que no son roles
+            if section_clean.lower() not in ['rules', 'reglas', 'voice', 'voz', 'tools', 'work mode', 'growth']:
+                data['roles'].append({
+                    'role_key': section_clean.lower().replace(' ', '_').replace('-', '_'),
+                    'role_name': section_clean
+                })
+    
+    # Si no encontró roles, agregar uno default basado en el creature
+    if not data['roles']:
+        data['roles'].append({
+            'role_key': 'meta_agent',
+            'role_name': 'Meta-Agente'
+        })
+    
+    return data
     
     # Buscar roles mencionados
     role_patterns = [
