@@ -1,9 +1,0 @@
-skill: loopy-guardrails-profiler
-must_trigger:
-  - "sincroniza mis guardrails con Loopy"
-  - "reporta mis politicas activas"
-  - "exporta mis guardrails para Orion"
-must_not_trigger:
-  - "registra mi agente en Loopy"
-  - "envia heartbeat"
-  - "crea una campaña de marketing"
