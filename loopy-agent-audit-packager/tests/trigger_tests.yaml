@@ -1,9 +1,0 @@
-skill: loopy-agent-audit-packager
-must_trigger:
-  - "genera reporte de auditoria de mi agente"
-  - "exporta mi ficha de agente"
-  - "prepara evidence bundle para compliance"
-must_not_trigger:
-  - "registra mi agente en Loopy"
-  - "sincroniza mis guardrails con Loopy"
-  - "envia heartbeat"
