@@ -1,97 +1,143 @@
-# Loopy Skills for OpenClaw
+# Loopy Skills for OpenClaw v2.0
 
-Este repositorio contiene los Skills oficiales de Loopy para integrar agentes corporativos con Orion (Agent Registry).
+Skills oficiales de Loopy para integrar agentes corporativos con Orion (Agent Registry).
 
-Objetivo: que cualquier agente de OpenClaw pueda registrarse, reportar su estado y mantenerse gobernado dentro de Loopy.
+## 🎯 Objetivo
 
----
+Que cualquier agente de OpenClaw pueda registrarse, reportar su estado completo y mantenerse gobernado dentro de Loopy Orion.
 
-## Skills incluidos
+## ✨ Novedades v2.0
 
-### 1. loopy-agent-registry (Core)
+### Datos Reales del Agente
+- Lee automáticamente `IDENTITY.md`, `SOUL.md`, `AGENTS.md`
+- Extrae nombre, descripción, roles, personalidad
 
-Función:
-- Registrar agente en Loopy
-- Actualizar ficha del agente
-- Enviar heartbeat
+### Sub-Agentes
+- Escanea y registra todos los sub-agentes en `~/.openclaw/agents/`
+- Lee su configuración y estado
 
-Triggers típicos:
-- "registra mi agente en Loopy"
-- "actualiza mi registro en Orion"
-- "envia heartbeat"
+### Skills Instaladas
+- Lista automáticamente todas las skills
+- Extrae nombre, versión, descripción, categoría
 
-Requiere:
-- LOOPY_AGENT_REGISTRY_TOKEN (Secret)
-- LOOPY_ORGANIZATION_ID (Secret)
-- LOOPY_WEBHOOK_URL (Environment)
+### Tareas y Proyectos
+- Extrae tareas de `MEMORY.md` y notas diarias
+- Parsea checkboxes markdown
 
----
+## 📦 Skills Incluidos
+
+### 1. loopy-agent-registry (v2.0) ⭐
+
+**Función:**
+- Registrar agente principal + sub-agentes
+- Actualizar ficha completa con datos reales
+- Enviar heartbeat con métricas
+
+**Triggers:**
+- `"registra mi agente en Loopy"`
+- `"actualiza mi registro en Orion"`
+- `"envía heartbeat"`
+
+**Requiere:**
+```bash
+# Secrets
+LOOPY_AGENT_REGISTRY_TOKEN
+LOOPY_ORGANIZATION_ID
+
+# Environment (opcional)
+LOOPY_WEBHOOK_URL
+# Default: https://efsyebiumgieglwvxiss.supabase.co/functions/v1/agent-registry-webhook
+```
+
+**Instalación:**
+```bash
+# 1. Copiar skill
+mkdir -p ~/.openclaw/workspace/skills/loopy-agent-registry
+cp -r loopy-agent-registry/* ~/.openclaw/workspace/skills/loopy-agent-registry/
+
+# 2. Instalar dependencias Python
+pip install pyyaml requests
+
+# 3. Configurar secrets
+openclaw secrets set LOOPY_AGENT_REGISTRY_TOKEN "tu-token"
+openclaw secrets set LOOPY_ORGANIZATION_ID "tu-org-uuid"
+
+# 4. Probar
+openclaw agent --message "registra mi agente en Loopy"
+```
 
 ### 2. loopy-guardrails-profiler
 
-Función:
-- Convertir guardrails locales a formato estándar Loopy
+Convierte guardrails locales a formato estándar Loopy.
 
-Trigger típico:
-- "sincroniza mis guardrails con Loopy"
-
----
+**Trigger:** `"sincroniza mis guardrails con Loopy"`
 
 ### 3. loopy-agent-audit-packager
 
-Función:
-- Generar reporte Markdown de auditoría sin secretos
+Genera reporte Markdown de auditoría sin secretos.
 
-Trigger típico:
-- "genera reporte de auditoria de mi agente"
+**Trigger:** `"genera reporte de auditoria de mi agente"`
+
+## 📁 Estructura del Repo
+
+```
+loopy-skills/
+├── README.md
+├── loopy-agent-registry/
+│   ├── SKILL.MD
+│   └── scripts/
+│       ├── __init__.py
+│       ├── agent_context_reader.py      # Lee IDENTITY.md, SOUL.md
+│       ├── subagent_scanner.py          # Escanee sub-agentes
+│       ├── skills_scanner.py            # Lista skills
+│       ├── tasks_extractor.py           # Extrae tareas
+│       ├── build_descriptor.py          # Arma payload
+│       ├── validate_descriptor.py       # Valida schema
+│       ├── send_registry_event.py       # Envía a Loopy
+│       └── heartbeat.sh
+├── loopy-guardrails-profiler/
+│   └── ...
+└── loopy-agent-audit-packager/
+    └── ...
+```
+
+## 🔒 Seguridad
+
+- ✅ Nunca incluir tokens o secretos en prompts
+- ✅ No enviar PII (emails, teléfonos, datos personales)
+- ✅ Sanitizar rutas de archivos (paths relativos)
+- ✅ Payload validado antes de enviar
+- ✅ Idempotency determinística por hora
+- ✅ Circuit breaker tras 3 fallos consecutivos
+- ✅ Límite de tamaño: < 500KB por payload
+
+## 📊 Estados en Loopy
+
+| Estado | Descripción |
+|--------|-------------|
+| `online` | Heartbeat <= 5 minutos |
+| `stale` | >5 y <=60 minutos |
+| `offline` | >60 minutos |
+| `revoked` | Revocado permanentemente |
+
+## 🐛 Troubleshooting
+
+| Código | Problema | Solución |
+|--------|----------|----------|
+| 401 | Token inválido | Revisar `LOOPY_AGENT_REGISTRY_TOKEN` |
+| 422 | Credencial no configurada | Registrar en Loopy Orion |
+| 400 | Payload inválido | Ejecutar `validate_descriptor.py` |
+| 413 | Payload muy grande | Revisar límites (20 tareas, 10 skills) |
+| 0 | Circuit breaker | Esperar 1 hora |
+
+## 📞 Soporte
+
+Contactar: matias@apprecio.com
+
+## 📄 Licencia
+
+MIT License - Ver archivo LICENSE
 
 ---
 
-## Instalación en OpenClaw
-
-1. Instalar el Skill desde este repositorio.
-2. Configurar los siguientes Secrets:
-
-- LOOPY_AGENT_REGISTRY_TOKEN
-- LOOPY_ORGANIZATION_ID
-
-3. (Opcional) Configurar:
-- LOOPY_WEBHOOK_URL  
-  Default:  
-  https://efsyebiumgieglwvxiss.supabase.co/functions/v1/agent-registry-webhook
-
-4. Probar con:
-- "envia heartbeat"
-
-Si devuelve 200 o 208, quedó correctamente instalado.
-
----
-
-## Seguridad
-
-- Nunca incluir tokens o secretos en prompts.
-- No enviar PII (emails, teléfonos, datos personales).
-- El Skill usa idempotency determinística por hora.
-- Circuit breaker tras 3 fallos consecutivos.
-
----
-
-## Estados en Loopy
-
-- online: heartbeat <= 5 minutos
-- stale: >5 y <=60 minutos
-- offline: >60 minutos
-- revoked: revocado permanentemente
-
----
-
-## Soporte
-
-Si el registro falla:
-
-- 401 → token inválido
-- 422 → credencial no configurada en Loopy
-- 400 → payload inválido
-- Circuit breaker → revisar configuración
-
-Contactar equipo Loopy.
+*Para Apprecio y la comunidad Loopy*
