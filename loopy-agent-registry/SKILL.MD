@@ -1,7 +1,7 @@
 ---
 name: loopy-agent-registry
-version: 2.0.0
-description: "Registra y actualiza agentes OpenClaw en Loopy Orion con datos reales. Lee IDENTITY.md, SOUL.md, sub-agentes, skills instaladas y tareas pendientes. Envía heartbeat periódico."
+version: 2.1.1
+description: "Registro automático de agentes OpenClaw en Loopy Orion. Detecta sub-agentes, skills y cron jobs automáticamente. Envía heartbeat periódico con datos reales del sistema."
 compatibility:
   runtimes:
     - OpenClaw 2026.2+
@@ -9,218 +9,338 @@ requirements:
   secrets:
     - LOOPY_AGENT_REGISTRY_TOKEN
     - LOOPY_ORGANIZATION_ID
-  environment:
-    - LOOPY_WEBHOOK_URL
+    - LOOPY_USER_EMAIL
   python_packages:
     - pyyaml
+    - requests
 metadata:
-  owner: Apprecio / Matias
+  owner: Apprecio
   category: agent-governance
   safety_level: strict
 use_cases:
-  - Registrar agente principal y sub-agentes en Loopy Orion
-  - Sincronizar ficha completa del agente (roles, tareas, skills, sub-agentes)
-  - Enviar heartbeat con métricas reales del sistema
-  - Mantener inventario actualizado de agentes corporativos
+  - Registrar agente principal y sub-agentes automáticamente
+  - Inventario completo de agentes corporativos
+  - Monitoreo de estado (online/offline)
+  - Cumplimiento y auditoría de agentes IA
 guardrails:
-  - Nunca incluir tokens, secretos ni contenido sensible en el payload.
-  - No incluir PII (emails, teléfonos, datos personales reales).
-  - Sanitizar rutas de archivos (usar paths relativos).
-  - Validar schema antes de enviar.
-  - Idempotency key determinística por hora.
-  - Circuit breaker: si hay 3 fallos consecutivos, pausar envíos.
-  - Limitar tamaño de payload a < 500KB (truncar listas largas).
+  - Nunca incluir tokens, secretos ni credenciales en el payload
+  - No incluir PII (emails, teléfonos, datos personales)
+  - Sanitizar rutas de archivos (usar paths relativos)
+  - Limitar payload a < 500KB
+  - Circuit breaker: pausar tras 3 fallos consecutivos
 ---
 
-## Novedades v2.0
+# Loopy Agent Registry v2.1
 
-Esta versión major incluye:
+Skill para registrar y monitorear agentes OpenClaw en **Loopy Orion**. Diseñado para equipos y organizaciones que necesitan visibilidad centralizada de sus agentes IA.
 
-### ✅ Datos Reales del Agente
-- Lee automáticamente `IDENTITY.md` (nombre, emoji, avatar)
-- Parsea `SOUL.md` (descripción, roles, personalidad)
-- Extrae información de `AGENTS.md`
+## ✨ Características
 
-### ✅ Sub-Agentes
-- Escanea `/root/.openclaw/agents/` automáticamente
-- Lee configuración de cada sub-agente (`agent.yaml`, `SOUL.md`)
-- Incluye: nombre, modelo, descripción, workspace, estado
+- **🤖 Detección Automática**: Escanea y registra sub-agentes sin configuración manual
+- **📊 Inventario Completo**: Skills, cron jobs, métricas y estado del sistema
+- **🔄 Heartbeat**: Señal de vida automática para monitoreo de disponibilidad
+- **🔒 Seguro**: No expone secretos ni datos sensibles
+- **⚡ Fácil de usar**: Una sola variable de entorno para empezar
 
-### ✅ Skills Instaladas  
-- Lista todas las skills en `/root/.openclaw/workspace/skills/`
-- Extrae: nombre, versión, descripción, categoría
-- Categoriza automáticamente (google-workspace, automation, etc.)
+## 📋 Requisitos
 
-### ✅ Tareas y Proyectos
-- Extrae tareas de `MEMORY.md` (sección Proyectos Pendientes)
-- Lee tareas de archivos `memory/YYYY-MM-DD.md` (últimos 14 días)
-- Parsea checkboxes markdown: `- [ ] Tarea pendiente`
+```bash
+# Python 3.8+
+pip install pyyaml requests
 
-### ✅ Métricas del Sistema
-- Conteo de notas diarias
-- Lista de cron jobs activos
-- Resumen de memoria (última actualización, entradas totales)
-
-## Estructura del Payload
-
-```json
-{
-  "idempotency_key": "sha256-hash",
-  "organization_id": "uuid",
-  "event_type": "agent.registered",
-  "agent": {
-    "agent_id": "uuid-real-del-agente",
-    "name": "Matías",
-    "description": "Meta-Agente de Apprecio...",
-    "runtime_type": "OpenClaw v2026.2.13",
-    "emoji": "🤖",
-    "risk_level": "medium",
-    
-    "roles": [{"role_key": "meta_agent", "role_name": "Meta-Agente"}],
-    "tasks": [{"task_ref": "...", "title": "...", "status": "pending"}],
-    "tools": [{"tool_key": "gws-gmail", "tool_name": "Google Gmail"}],
-    "guardrails": [{"guardrail_key": "no_pii", "summary": "..."}],
-    "data_access": [{"system_key": "openclaw", "system_name": "OpenClaw"}],
-    "dependencies": [{"dep_type": "service", "dep_ref": "orion"}],
-    
-    "sub_agents": [
-      {
-        "agent_id": "karpesky",
-        "name": "Karpesky",
-        "description": "Especialista en n8n workflows",
-        "model": "kimi-coding/k2p5",
-        "status": "active"
-      }
-    ],
-    
-    "skills": [
-      {"name": "gws-gmail", "version": "1.0.0", "category": "google-workspace"}
-    ],
-    
-    "cron_jobs": [
-      {"name": "daily-memory", "schedule": "0 9 * * *", "status": "active"}
-    ],
-    
-    "memory_summary": {
-      "last_updated": "2026-03-09T10:00:00",
-      "daily_notes_count": 12,
-      "total_entries": 156
-    }
-  }
-}
+# O si prefieres:
+pip install -r requirements.txt
 ```
 
-## Archivos del Skill
+## 🚀 Instalación Rápida
+
+### 1. Copiar el skill
+
+```bash
+cp -r loopy-agent-registry ~/.openclaw/workspace/skills/
+```
+
+### 2. Configurar secrets (una sola vez)
+
+```bash
+# Opción A: Variables de entorno
+export LOOPY_AGENT_REGISTRY_TOKEN="tu-token-de-loopy"
+export LOOPY_ORGANIZATION_ID="tu-org-id"
+export LOOPY_USER_EMAIL="tu-email@empresa.com"  # Email para registro en Loopy
+
+# Opción B: Archivo secrets (recomendado)
+echo "LOOPY_AGENT_REGISTRY_TOKEN=tu-token" > ~/.openclaw/secrets
+echo "LOOPY_ORGANIZATION_ID=tu-org-id" >> ~/.openclaw/secrets
+echo "LOOPY_USER_EMAIL=tu-email@empresa.com" >> ~/.openclaw/secrets
+chmod 600 ~/.openclaw/secrets
+```
+
+### 3. Probar
+
+```bash
+# Ver qué detecta (sin enviar)
+cd ~/.openclaw/workspace/skills/loopy-agent-registry
+python3 scripts/heartbeat.py --dry-run
+
+# Enviar heartbeat real
+python3 scripts/heartbeat.py
+```
+
+## 📖 Uso
+
+### Heartbeat Manual
+
+```bash
+# Enviar heartbeat ahora
+openclaw agent --message "enviar heartbeat a Loopy"
+
+# O directamente:
+python3 ~/.openclaw/workspace/skills/loopy-agent-registry/scripts/heartbeat.py
+```
+
+### Ver qué detecta el sistema
+
+```bash
+python3 scripts/heartbeat.py --dry-run --verbose
+```
+
+Esto muestra:
+- Sub-agentes encontrados
+- Skills instaladas
+- Cron jobs configurados
+- Métricas del sistema
+
+### Automatizar con Cron
+
+Agregar a OpenClaw cron para heartbeat diario:
+
+```bash
+openclaw cron add \
+  --name "loopy-heartbeat" \
+  --schedule "0 6 * * *" \
+  --command "python3 ~/.openclaw/workspace/skills/loopy-agent-registry/scripts/heartbeat.py" \
+  --tz "America/Santiago"
+```
+
+## 🔧 Configuración Avanzada
+
+### Variables de Entorno
+
+| Variable | Requerida | Descripción | Default |
+|----------|-----------|-------------|---------|
+| `LOOPY_AGENT_REGISTRY_TOKEN` | ✅ | Token de autenticación en Loopy | - |
+| `LOOPY_ORGANIZATION_ID` | ✅ | ID de tu organización en Loopy | - |
+| `LOOPY_USER_EMAIL` | ✅ | Email del propietario del agente (para registro en Loopy) | - |
+| `LOOPY_AGENT_ID` | ❌ | ID único de este agente | `hostname-main` |
+| `LOOPY_AGENT_NAME` | ❌ | Nombre descriptivo | `Agente` |
+| `LOOPY_LOG_FILE` | ❌ | Ruta del archivo de log | `~/.openclaw/workspace/logs/loopy-heartbeat.log` |
+
+### Configuración por Archivo
+
+Crear `~/.openclaw/workspace/skills/loopy-agent-registry/config.yaml`:
+
+```yaml
+# Configuración del agente principal
+agent:
+  id: "mi-agente-unico"
+  name: "Mi Agente"
+  description: "Agente especializado para..."
+
+# Sub-agentes adicionales (opcional)
+# Normalmente se detectan automáticamente
+sub_agents:
+  - id: "agente-personalizado"
+    name: "Agente Personalizado"
+    description: "Creado manualmente"
+    status: "online"
+
+# Webhook (normalmente no necesario cambiar)
+webhook_url: "https://tu-endpoint.com/webhook"
+```
+
+## 📊 Qué se envía a Loopy
+
+### Agente Principal
+- ID único
+- Nombre y emoji
+- Estado (online/offline)
+- Timestamp
+
+### Sub-Agentes (Detectados Automáticamente)
+El skill escanea `~/.openclaw/agents/` y registra:
+- Nombre y descripción
+- Modelo utilizado
+- Estado (active/disabled)
+- Workspace asociado
+
+**Ejemplo:** Si creas un agente llamado "FinExpertAI", aparecerá automáticamente en el próximo heartbeat.
+
+### Skills (Detectadas Automáticamente)
+Escanea `~/.openclaw/workspace/skills/` y registra:
+- Nombre de la skill
+- Categoría (google-workspace, automation, etc.)
+- Versión (si está disponible)
+
+### Cron Jobs
+Lista los jobs configurados en OpenClaw:
+- Nombre
+- Schedule (expresión cron)
+- Estado (active/disabled)
+
+### Métricas del Sistema
+- Archivos de memoria
+- Total de skills
+- Timestamp de actualización
+
+## 🐛 Troubleshooting
+
+### "LOOPY_AGENT_REGISTRY_TOKEN no configurado"
+
+```bash
+# Verificar que esté configurado
+echo $LOOPY_AGENT_REGISTRY_TOKEN
+
+# Configurar:
+export LOOPY_AGENT_REGISTRY_TOKEN="tu-token"
+```
+
+### No detecta mis sub-agentes
+
+Verificar estructura:
+```
+~/.openclaw/agents/
+├── mi-agente-1/
+│   ├── agent/
+│   │   └── agent.yaml
+│   └── SOUL.md
+└── mi-agente-2/
+    └── ...
+```
+
+El agente debe tener al menos `agent/agent.yaml` o `SOUL.md`.
+
+### Error 401 (Unauthorized)
+
+- Token inválido o expirado
+- Verificar en Loopy Orion que el token esté activo
+
+### Error 422 (Unprocessable)
+
+- Credencial no configurada en Loopy
+- Contactar admin de Loopy para registrar el agente
+
+### Payload muy grande
+
+El skill limita automáticamente:
+- Máximo 10 sub-agentes
+- Máximo 10 skills
+- Máximo 10 cron jobs
+
+Si necesitas más, modifica las constantes en `heartbeat.py`.
+
+## 📁 Estructura del Skill
 
 ```
 loopy-agent-registry/
-├── SKILL.MD                           # Este archivo
-├── scripts/
-│   ├── __init__.py
-│   ├── common.py                      # Config y utilidades
-│   ├── agent_context_reader.py        # Lee IDENTITY.md, SOUL.md, AGENTS.md
-│   ├── subagent_scanner.py            # Escanee sub-agentes
-│   ├── skills_scanner.py              # Lista skills instaladas
-│   ├── tasks_extractor.py             # Extrae tareas de memory
-│   ├── build_descriptor.py            # Construye payload final
-│   ├── validate_descriptor.py         # Valida contra schema
-│   ├── send_registry_event.py         # Envía a Loopy
-│   └── heartbeat.sh                   # Script de heartbeat
-├── references/
-│   └── agent-schema.json              # Schema de validación
-└── tests/
-    └── test_build_descriptor.py       # Tests unitarios
+├── SKILL.MD                    # Esta documentación
+├── register_agent.py           # Registro completo (ejecución única)
+├── requirements.txt            # Dependencias Python
+└── scripts/
+    ├── heartbeat.py           # ⭐ Heartbeat automático
+    ├── heartbeat.sh           # Wrapper bash
+    ├── subagent_scanner.py    # Detecta sub-agentes
+    ├── skills_scanner.py      # Detecta skills
+    └── common.py              # Utilidades
 ```
 
-## Workflow
+## 🔄 Flujo de Datos
 
-1. **build_descriptor.py** llama a:
-   - `agent_context_reader.get_agent_context()` → Datos del agente principal
-   - `subagent_scanner.get_all_subagents()` → Lista de sub-agentes
-   - `skills_scanner.get_all_skills()` → Skills instaladas
-   - `tasks_extractor.get_all_tasks()` → Tareas pendientes
+```
+┌─────────────────────────────────────────────────────────────┐
+│  OpenClaw                                                   │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │ IDENTITY.md │  │ Sub-agentes │  │ Skills instaladas   │ │
+│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘ │
+│         └─────────────────┼────────────────────┘            │
+│                           ▼                                 │
+│              ┌─────────────────────────┐                   │
+│              │   heartbeat.py          │                   │
+│              │   - Lee contexto        │                   │
+│              │   - Escanea agentes     │                   │
+│              │   - Arma payload        │                   │
+│              └───────────┬─────────────┘                   │
+│                          │ POST                            │
+└──────────────────────────┼─────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Loopy Orion                                                │
+│  - Registra agente                                          │
+│  - Actualiza inventario                                     │
+│  - Monitorea disponibilidad                                 │
+└─────────────────────────────────────────────────────────────┘
+```
 
-2. **Arma el payload** con toda la información
+## 📈 Estados en Loopy Orion
 
-3. **validate_descriptor.py** valida contra schema
+| Estado | Significado | Timeout |
+|--------|-------------|---------|
+| 🟢 online | Heartbeat reciente | ≤ 5 min |
+| 🟡 stale | Heartbeat atrasado | 5-60 min |
+| 🔴 offline | Sin heartbeat | > 60 min |
+| ⚫ revoked | Revocado manualmente | - |
 
-4. **send_registry_event.py** hace POST al webhook de Loopy
+## 🏢 Uso en Organizaciones
 
-## Instalación
+### Para Administradores
 
+1. **Crear token de organización** en Loopy Orion
+2. **Distribuir configuración** a los equipos:
+   ```bash
+   # Archivo de configuración compartido
+   export LOOPY_ORGANIZATION_ID="org-apprecio"
+   export LOOPY_AGENT_REGISTRY_TOKEN="tkn-xxxxx"
+   ```
+3. **Monitorear dashboard** de Loopy para ver todos los agentes
+
+### Para Usuarios Finales
+
+Simplemente instalar el skill y ejecutar:
 ```bash
-# 1. Clonar o copiar el skill a tu workspace
-cp -r loopy-agent-registry ~/.openclaw/workspace/skills/
-
-# 2. Configurar secrets
-openclaw secrets set LOOPY_AGENT_REGISTRY_TOKEN "tu-token-aqui"
-openclaw secrets set LOOPY_ORGANIZATION_ID "tu-org-uuid-aqui"
-
-# 3. (Opcional) Configurar webhook URL
-export LOOPY_WEBHOOK_URL="https://efsyebiumgieglwvxiss.supabase.co/functions/v1/agent-registry-webhook"
-
-# 4. Probar
-openclaw agent --message "registra mi agente en Loopy"
+python3 scripts/heartbeat.py --dry-run  # Verificar
+python3 scripts/heartbeat.py            # Enviar
 ```
 
-## Uso
+El sistema detectará automáticamente sus agentes y skills.
 
-### Registrar agente completo
-```
-"registra mi agente en Loopy"
-"actualiza mi registro en Orion"
-"envía mi ficha a Loopy"
-```
+## 📝 Changelog
 
-### Heartbeat
-```
-"envía heartbeat"
-"manda heartbeat a Loopy"
-```
+### v2.1.1 (2026-03-11)
+- ✨ **Campo `email` agregado al payload**: Usado por Loopy para vincular agentes con usuarios
+- ✨ Nueva variable de entorno `LOOPY_USER_EMAIL` (requerida)
+- 📝 Documentación actualizada con instrucciones de email
 
-## Estados en Loopy
-
-- **online**: heartbeat <= 5 minutos
-- **stale**: >5 y <=60 minutos  
-- **offline**: >60 minutos
-- **revoked**: revocado permanentemente
-
-## Troubleshooting
-
-| Código | Problema | Solución |
-|--------|----------|----------|
-| 401 | Token inválido | Revisar `LOOPY_AGENT_REGISTRY_TOKEN` |
-| 422 | Credencial no configurada | Registrar credencial en Loopy Orion |
-| 400 | Payload inválido | Ejecutar `validate_descriptor.py` para detalles |
-| 413 | Payload muy grande | Revisar que listas no excedan límites (20 tareas, 10 skills) |
-| 0 | Circuit breaker | Esperar 1 hora o revisar configuración |
-
-## Dependencias
-
-```bash
-pip install pyyaml requests
-```
-
-## Limitaciones
-
-- **No envía**: Contenido completo de MEMORY.md (solo metadatos)
-- **No envía**: Credenciales, tokens, contraseñas
-- **No envía**: Contenido de archivos del usuario
-- **Límites**: Máximo 20 tareas, 10 skills, 10 sub-agentes, 10 cron jobs
-
-## Changelog
+### v2.1.0 (2026-03-11)
+- ✨ **Heartbeat automatizado**: `heartbeat.py` detecta todo automáticamente
+- ✨ **Documentación completa** para uso organizacional
+- ✨ **Dry-run mode**: Verificar sin enviar
+- ✨ **Logging mejorado** con timestamps
+- 🐛 **Fix**: Script bash ahora es wrapper de Python
 
 ### v2.0.0 (2026-03-09)
-- ✨ Lee datos reales de IDENTITY.md, SOUL.md
+- ✨ Lectura de IDENTITY.md, SOUL.md
 - ✨ Soporte para sub-agentes
-- ✨ Lista automática de skills instaladas
-- ✨ Extracción de tareas de memory
-- ✨ Métricas del sistema (cron jobs, memory stats)
+- ✨ Lista automática de skills
+- ✨ Extracción de tareas
 
 ### v1.0.0
 - Registro básico de agentes
-- Heartbeat periódico
 
-## Soporte
+## 🤝 Soporte
 
-Contactar: matias@apprecio.com
+- **Issues**: Crear ticket en el repositorio
+- **Email**: matias@apprecio.com
+- **Documentación Loopy**: https://docs.loopy.orion
+
+---
+
+**Nota de Seguridad**: Este skill nunca envía contraseñas, tokens, ni contenido de archivos del usuario. Solo envía metadatos (nombres, descripciones, conteos) necesarios para el inventario de agentes.
